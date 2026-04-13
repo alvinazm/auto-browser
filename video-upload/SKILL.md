@@ -25,9 +25,9 @@ trigger: 抖音上传、视频发布、stdio抖音上传
 
 | 元素 | 选择器 | 说明 |
 |------|--------|------|
-| 文件输入 | `input[type="file"]` | 用于上传视频文件 |
+| 上传视频 | `.semi-button-primary` 或 `button.semi-button-primary` | 发布视频按钮 |
 | 标题输入框 | `input[placeholder*="标题"]` 或 `.semi-input` | 填写作品标题 |
-| 发布按钮 | `.semi-button-primary` 或 `button.semi-button-primary` | 发布视频按钮 |
+
 
 **重要**: 不要使用固定的 ref（如 ref_15），ref 是动态的，每次页面加载后会变化。必须使用 CSS 选择器。
 
