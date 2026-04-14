@@ -38,9 +38,9 @@ await client.close();
 | 环节 | 等待时间 | 原因 |
 |------|----------|------|
 | 导航后 | 5 秒 | 等待页面完全加载 |
-| 上传后 | **15 秒** | 等待视频处理完成（关键！） |
+| 上传后 | **8 秒** | 等待视频处理完成（关键！） |
 
-**教训**：之前只等 8 秒导致失败，需要 15 秒才能让视频处理完成并跳转到编辑页面。
+**教训**：之前只等 5 秒导致失败，需要 8 秒才能让视频处理完成并跳转到编辑页面。
 
 ### 3. 不要启动 MCP 服务
 
@@ -89,7 +89,7 @@ cd /Users/azm/MyProject/auto-browser
        ↓
 环节 3: 上传视频文件 (选择器: input[type="file"])
        ↓
-环节 4: 等待视频处理 (等待 15 秒) ← 关键！
+环节 4: 等待视频处理 (等待 8 秒) ← 关键！
        ↓
 环节 5: 检查页面状态 (是否出现标题输入框)
        ↓
@@ -134,8 +134,8 @@ const uploadResult = await client.callTool({
 ### 检查上传结果
 
 ```javascript
-// 上传后等待 15 秒
-await new Promise(r => setTimeout(r, 15000));
+// 上传后等待 8 秒
+await new Promise(r => setTimeout(r, 8000));
 
 // 检查页面是否出现标题输入框
 const pageResult = await client.callTool({ 
@@ -182,7 +182,7 @@ ls -la /path/to/video.mp4
 
 **原因**：等待时间不够
 
-**解决**：上传后等待至少 15 秒
+**解决**：上传后等待至少 8 秒
 
 ---
 
@@ -202,3 +202,101 @@ ls -la /path/to/video.mp4
 2. **等待时间要足够** - 特别是上传后的 15 秒等待
 3. **MCP 服务由扩展管理** - 不需要在脚本中启动
 4. **使用正确的选择器** - `input[type="file"]` 是上传视频的关键选择器
+
+---
+
+## 七、stdio 模式脚本（当前成功方案）
+
+### 为什么这次成功了？
+
+2024年4月14日更新的脚本采用了**纯 bash + stdio 模式**，与之前的 node.js MCP SDK 方案不同。成功原因如下：
+
+#### 1. 每次 MCP 调用都是独立的进程
+
+```bash
+# 每次调用都启动新的 node 进程
+mcp_call() {
+    RESULT=$(echo "$JSON" | node "$STDIO_SERVER" 2>&1)
+}
+```
+
+每次调用都会：
+1. 清理端口残留进程
+2. 启动新的 node 进程
+3. 发送 JSON-RPC 请求
+4. 获取响应后进程退出
+
+#### 2. 端口清理机制
+
+```bash
+cleanup() {
+    lsof -i :12306 2>/dev/null | grep -v PID | awk '{print $2}' | head -1 | xargs kill -9 2>/dev/null
+    sleep 2
+}
+```
+
+每次调用前都清理端口，确保没有残留进程占用端口。
+
+#### 3. 重试机制
+
+```bash
+while [ $retry -lt $max_retries ]; do
+    if [ $retry -gt 0 ]; then
+        cleanup
+    fi
+    RESULT=$(echo "$JSON" | node "$STDIO_SERVER" 2>&1)
+    
+    if echo "$RESULT" | grep -q 'ECONNREFUSED\|Failed to connect'; then
+        retry=$((retry + 1))
+        continue
+    fi
+    return 0
+done
+```
+
+如果遇到连接错误，会自动重试（最多5次）。
+
+#### 4. 完整的流程设计
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| 1 | cleanup | 清理残留进程 |
+| 2 | initialize | 初始化 MCP 连接 |
+| 3 | navigate | 打开上传页面 |
+| 4 | sleep 5 | 等待页面加载 |
+| 5 | click_element | 点击"上传视频"按钮 |
+| 6 | sleep 2 | 等待文件对话框 |
+| 7 | upload_file | 上传视频文件 |
+| 8 | sleep 8 | 等待视频处理（关键！） |
+| 9 | read_page | 检查页面状态 |
+| 10 | fill_or_select | 填写标题（可选） |
+
+#### 5. 与之前失败方案的区别
+
+| 对比项 | 之前的 node.js 方案 | 现在的 stdio 方案 |
+|--------|---------------------|-------------------|
+| 连接方式 | HTTP 客户端 (StreamableHTTPClientTransport) | 标准输入输出 (stdio) |
+| 进程模型 | 单进程内多个 HTTP 请求 | 每次调用独立进程 |
+| 端口占用 | 需要端口持续监听 | 每次启动后释放 |
+| 错误恢复 | 容易出现 "Already connected" | 每次重试都是全新进程 |
+| 连续运行 | 第二次会失败 | 可以连续成功 |
+
+### stdio 模式的核心优势
+
+1. **无状态**：每次调用都是独立的，不存在状态残留
+2. **自动清理**：进程退出后自动释放资源
+3. **简单可靠**：不需要管理长连接
+4. **易于调试**：每次调用都可以单独测试
+
+### 当前脚本路径
+
+```bash
+/Users/azm/MyProject/auto-browser/video-upload/scripts/upload.sh
+```
+
+### 使用方法
+
+```bash
+cd /Users/azm/MyProject/auto-browser
+./video-upload/scripts/upload.sh /path/to/video.mp4 "视频标题"
+```

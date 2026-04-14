@@ -1,18 +1,9 @@
 #!/bin/bash
 
-# 抖音视频上传脚本
+# 抖音视频上传脚本 (stdio 模式)
 # 用法: ./upload.sh <视频路径> [标题]
 
-set -e
-
-# 配置
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PORT=12306
-
-# 设置 NODE_PATH 以找到 MCP SDK
-export NODE_PATH="/Users/azm/Library/pnpm/global/5/.pnpm/@modelcontextprotocol+sdk@1.29.0_zod@3.25.76/node_modules:$NODE_PATH"
-
-# 参数检查
+# 检查参数
 if [ -z "$1" ]; then
     echo "用法: $0 <视频路径> [标题]"
     exit 1
@@ -20,9 +11,12 @@ fi
 
 VIDEO_PATH="$1"
 TITLE="${2:-测试视频上传}"
+URL="https://creator.douyin.com/creator-micro/content/upload"
+
+STDIO_SERVER="/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js"
 
 echo "============================================"
-echo "抖音视频上传脚本"
+echo "抖音视频上传脚本 (stdio模式)"
 echo "视频路径: $VIDEO_PATH"
 echo "标题: $TITLE"
 echo "============================================"
@@ -33,127 +27,102 @@ if [ ! -f "$VIDEO_PATH" ]; then
     exit 1
 fi
 
-# 检查 MCP 服务是否已运行（不需要启动）
+# 清理端口
+cleanup() {
+    lsof -i :12306 2>/dev/null | grep -v PID | awk '{print $2}' | head -1 | xargs kill -9 2>/dev/null
+    sleep 2
+}
+
+# MCP 调用函数 - 带重试
+mcp_call() {
+    local JSON="$1"
+    local max_retries=5
+    local retry=0
+    local RESULT=""
+
+    while [ $retry -lt $max_retries ]; do
+        if [ $retry -gt 0 ]; then
+            cleanup
+        fi
+
+        RESULT=$(echo "$JSON" | node "$STDIO_SERVER" 2>&1)
+
+        if echo "$RESULT" | grep -q '"jsonrpc"'; then
+            if echo "$RESULT" | grep -q 'ECONNREFUSED\|Failed to connect'; then
+                retry=$((retry + 1))
+                continue
+            fi
+            echo "$RESULT"
+            return 0
+        fi
+
+        retry=$((retry + 1))
+        sleep 2
+    done
+
+    echo "$RESULT"
+    return 1
+}
+
+# 主流程
+cleanup
+
 echo ""
-echo "=== 检查 MCP 服务 ==="
-if lsof -i :$PORT | grep -q LISTEN; then
-    echo "MCP 服务已在运行 (端口 $PORT)"
-else
-    echo "错误: MCP 服务未运行"
-    echo "请先在 Chrome 中激活 mcp-chrome 扩展"
+echo "=== 初始化 MCP ==="
+INIT_JSON='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1.0"}},"id":1}'
+INIT_RESULT=$(mcp_call "$INIT_JSON")
+echo "初始化: OK"
+
+echo ""
+echo "=== 打开上传页面 ==="
+NAVIGATE_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_navigate\",\"arguments\":{\"url\":\"$URL\"}},\"id\":2}"
+RESULT=$(mcp_call "$NAVIGATE_JSON")
+
+if ! echo "$RESULT" | grep -q '"isError":false'; then
+    echo "导航失败"
     exit 1
+fi
+echo "导航: OK"
+
+echo "等待 5 秒让页面加载..."
+sleep 5
+
+echo ""
+echo "=== 点击上传按钮 ==="
+CLICK_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"selector":"button.semi-button","selectorType":"css"}},"id":3}'
+CLICK_RESULT=$(mcp_call "$CLICK_JSON")
+echo "点击结果: $CLICK_RESULT"
+
+echo "等待 2 秒..."
+sleep 2
+
+echo ""
+echo "=== 上传视频文件 ==="
+ESCAPED_PATH=$(echo "$VIDEO_PATH" | sed 's/"/\\"/g')
+UPLOAD_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_upload_file\",\"arguments\":{\"selector\":\"input[type=\\\"file\\\"]\",\"filePath\":\"$ESCAPED_PATH\"}},\"id\":4}"
+UPLOAD_RESULT=$(mcp_call "$UPLOAD_JSON")
+echo "上传结果: $UPLOAD_RESULT"
+
+echo ""
+echo "=== 等待视频处理 (8秒) ==="
+sleep 8
+
+echo ""
+echo "=== 检查页面状态 ==="
+READ_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_read_page","arguments":{"filter":"interactive"}},"id":5}'
+PAGE_RESULT=$(mcp_call "$READ_JSON")
+echo "页面: $PAGE_RESULT"
+
+if echo "$PAGE_RESULT" | grep -q "标题"; then
+    echo ""
+    echo "=== 填写标题 ==="
+    ESCAPED_TITLE=$(echo "$TITLE" | sed 's/"/\\"/g')
+    FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
+    FILL_RESULT=$(mcp_call "$FILL_JSON")
+    echo "填写: $FILL_RESULT"
 fi
 
 echo ""
-echo "=== 执行上传流程 (单进程单连接) ==="
-
-node -e "
-// 设置模块路径
-process.env.NODE_PATH = '/Users/azm/Library/pnpm/global/5/.pnpm/@modelcontextprotocol+sdk@1.29.0_zod@3.25.76/node_modules:' + process.env.NODE_PATH;
-require('module')._initPaths();
-
-const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
-const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
-const fs = require('fs');
-
-const videoPath = '$VIDEO_PATH';
-const title = '$TITLE';
-const configPath = '/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/stdio-config.json';
-
-async function run() {
-    // 加载配置
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    
-    // 创建单一客户端
-    console.log('创建 MCP 客户端...');
-    const client = new Client({ name: 'Mcp Chrome Proxy', version: '1.0.0' }, { capabilities: {} });
-    const transport = new StreamableHTTPClientTransport(new URL(config.url), {});
-    await client.connect(transport);
-    console.log('客户端已连接');
-    
-    try {
-        // 环节 3: 导航
-        console.log('');
-        console.log('=== 环节 3: 打开上传页面 ===');
-        await new Promise(r => setTimeout(r, 2000));
-        
-        const navResult = await client.callTool({ 
-            name: 'chrome_navigate', 
-            arguments: { url: 'https://creator.douyin.com/creator-micro/content/upload' }
-        }, undefined, { timeout: 60000 });
-        console.log('导航结果:', navResult.content?.[0]?.text);
-        
-        console.log('等待 5 秒让页面加载...');
-        await new Promise(r => setTimeout(r, 5000));
-        
-        // 环节 4: 上传
-        console.log('');
-        console.log('=== 环节 4: 上传视频文件 ===');
-        console.log('视频路径:', videoPath);
-        
-        const uploadResult = await client.callTool({ 
-            name: 'chrome_upload_file', 
-            arguments: { 
-                selector: 'input[type=\"file\"]',
-                filePath: videoPath
-            }
-        }, undefined, { timeout: 180000 });
-        console.log('上传结果:', uploadResult.content?.[0]?.text);
-        
-        // 环节 5: 等待处理
-        console.log('');
-        console.log('=== 环节 5: 等待视频上传 ===');
-        console.log('等待 5 秒...');
-        await new Promise(r => setTimeout(r, 5000));
-        
-        // 环节 6: 检查状态
-        console.log('');
-        console.log('=== 环节 6: 检查页面状态 ===');
-        const pageResult = await client.callTool({ 
-            name: 'chrome_read_page', 
-            arguments: { filter: 'interactive' }
-        }, undefined, { timeout: 30000 });
-        
-        const content = typeof pageResult.content === 'string' ? pageResult.content : JSON.stringify(pageResult.content);
-        
-        if (content.includes('textbox') && (content.includes('标题') || content.includes('标题'))) {
-            console.log('✓ 视频上传成功！页面已跳转到编辑页面');
-            
-            // 环节 7: 填写标题
-            console.log('');
-            console.log('=== 环节 7: 填写标题 ===');
-            
-            const fillResult = await client.callTool({ 
-                name: 'chrome_fill_or_select', 
-                arguments: { 
-                    selector: 'input[placeholder*=\"标题\"]',
-                    value: title
-                }
-            }, undefined, { timeout: 30000 });
-            console.log('填写结果:', fillResult.success ? '成功' : '失败');
-        } else {
-            console.log('页面元素:', content.substring(0, 1000));
-        }
-        
-    } catch (e) {
-        console.error('错误:', e.message);
-    } finally {
-        console.log('');
-        console.log('关闭客户端...');
-        await client.close();
-    }
-}
-
-run().then(() => {
-    console.log('');
-    console.log('============================================');
-    console.log('上传流程完成!');
-    console.log('============================================');
-}).catch(e => {
-    console.error('Fatal error:', e);
-    process.exit(1);
-});
-"
-
-echo ""
-echo "脚本执行完成"
+echo "============================================"
+echo "上传流程完成!"
+echo "============================================"
