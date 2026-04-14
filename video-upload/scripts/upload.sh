@@ -5,12 +5,13 @@
 
 # 检查参数
 if [ -z "$1" ]; then
-    echo "用法: $0 <视频路径> [标题]"
+    echo "用法: $0 <视频路径> [标题] [封面路径]"
     exit 1
 fi
 
 VIDEO_PATH="$1"
 TITLE="${2:-测试视频上传}"
+COVER_PATH="$3"
 URL="https://creator.douyin.com/creator-micro/content/upload"
 
 STDIO_SERVER="/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js"
@@ -19,11 +20,20 @@ echo "============================================"
 echo "抖音视频上传脚本 (stdio模式)"
 echo "视频路径: $VIDEO_PATH"
 echo "标题: $TITLE"
+if [ -n "$COVER_PATH" ]; then
+    echo "封面路径: $COVER_PATH"
+fi
 echo "============================================"
 
 # 检查视频文件是否存在
 if [ ! -f "$VIDEO_PATH" ]; then
     echo "错误: 视频文件不存在: $VIDEO_PATH"
+    exit 1
+fi
+
+# 检查封面文件是否存在（如果提供了封面）
+if [ -n "$COVER_PATH" ] && [ ! -f "$COVER_PATH" ]; then
+    echo "错误: 封面文件不存在: $COVER_PATH"
     exit 1
 fi
 
@@ -117,9 +127,56 @@ if echo "$PAGE_RESULT" | grep -q "标题"; then
     echo ""
     echo "=== 填写标题 ==="
     ESCAPED_TITLE=$(echo "$TITLE" | sed 's/"/\\"/g')
-    FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
+    FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"填写作品标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
     FILL_RESULT=$(mcp_call "$FILL_JSON")
     echo "填写: $FILL_RESULT"
+    
+    # 如果提供了封面路径，则上传封面
+    if [ -n "$COVER_PATH" ]; then
+        echo ""
+        echo "=== 上传封面 ==="
+        
+        # 根据页面元素，选择封面按钮在 (702, 563)
+        # 步骤1: 点击"选择封面"按钮 (横封面)
+        echo "步骤1: 点击选择封面按钮"
+        CLICK_COVER_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"coordinates":{"x":702,"y":563}}},"id":7}'
+        CLICK_COVER_RESULT=$(mcp_call "$CLICK_COVER_JSON")
+        echo "点击选择封面: $CLICK_COVER_RESULT"
+        
+        echo "等待 3 秒让弹框出现..."
+        sleep 3
+        
+        # 步骤2: 读取弹框内容
+        echo "步骤2: 读取弹框元素"
+        READ_DIALOG_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_read_page","arguments":{}},"id":8}'
+        READ_DIALOG_RESULT=$(mcp_call "$READ_DIALOG_JSON")
+        echo "弹框元素: $READ_DIALOG_RESULT"
+        
+        # 步骤3: 点击"上传封面"按钮
+        echo "步骤3: 点击上传封面按钮"
+        CLICK_UPLOAD_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"coordinates":{"x":1097,"y":610}}},"id":9}'
+        CLICK_UPLOAD_RESULT=$(mcp_call "$CLICK_UPLOAD_JSON")
+        echo "点击上传封面: $CLICK_UPLOAD_RESULT"
+        
+        echo "等待 2 秒..."
+        sleep 2
+        
+        # 步骤4: 上传封面文件 (使用精确的选择器)
+        echo "步骤4: 上传封面文件"
+        ESCAPED_COVER=$(echo "$COVER_PATH" | sed 's/"/\\"/g')
+        UPLOAD_COVER_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_upload_file\",\"arguments\":{\"selector\":\"div.upload-BvM5FF input.semi-upload-hidden-input\",\"filePath\":\"$ESCAPED_COVER\"}},\"id\":10}"
+        UPLOAD_COVER_RESULT=$(mcp_call "$UPLOAD_COVER_JSON")
+        echo "上传封面: $UPLOAD_COVER_RESULT"
+        
+        echo "等待 3 秒让封面上传完成..."
+        sleep 3
+        
+        # 步骤5: 点击"完成"按钮
+        echo "步骤5: 点击完成按钮"
+        CLICK_FINISH_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"selector":"button.secondary-zU1YLr","selectorType":"css"}},"id":11}'
+        CLICK_FINISH_RESULT=$(mcp_call "$CLICK_FINISH_JSON")
+        echo "点击完成: $CLICK_FINISH_RESULT"
+    fi
 fi
 
 echo ""
