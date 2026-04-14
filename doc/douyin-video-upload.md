@@ -1,170 +1,204 @@
-# 抖音视频上传完整流程
+# 抖音视频上传完整指南
 
-## 概述
+## 核心经验总结
 
-本文档记录如何使用 MCP Chrome 工具在抖音创作者后台上传并发布视频。
+经过多次尝试和失败，最终成功上传视频。以下是关键发现和注意事项：
 
-## 关键发现
+---
 
-### 1. 上传视频的核心方法
+## 一、关键成功要素
 
-使用 `chrome_upload_file` 工具可以直接上传视频文件，**不需要点击"上传视频"按钮**：
+### 1. 使用 MCP 客户端的正确方式
+
+**错误做法**：每个环节创建新的客户端连接
+```javascript
+// ❌ 错误 - 会导致 "Already connected to a transport" 错误
+await createClient(); // 环节3
+await createClient(); // 环节4 - 失败！
+```
+
+**正确做法**：整个流程只使用一个客户端连接
+```javascript
+// ✅ 正确 - 单进程单连接
+const client = new Client({ name: 'Mcp Chrome Proxy', ... });
+const transport = new StreamableHTTPClientTransport(new URL(config.url), {});
+await client.connect(transport);
+
+// 所有操作使用同一个 client
+await client.callTool({ name: 'chrome_navigate', ... });
+await client.callTool({ name: 'chrome_upload_file', ... });
+await client.callTool({ name: 'chrome_read_page', ... });
+
+// 最后关闭
+await client.close();
+```
+
+### 2. 等待时间很关键
+
+| 环节 | 等待时间 | 原因 |
+|------|----------|------|
+| 导航后 | 5 秒 | 等待页面完全加载 |
+| 上传后 | **15 秒** | 等待视频处理完成（关键！） |
+
+**教训**：之前只等 8 秒导致失败，需要 15 秒才能让视频处理完成并跳转到编辑页面。
+
+### 3. 不要启动 MCP 服务
+
+**错误做法**：尝试在脚本中启动 MCP 服务
+```bash
+# ❌ 错误
+node mcp-server-stdio.js &
+```
+
+**正确做法**：MCP 服务应该已经由 Chrome 扩展启动
+```bash
+# ✅ 正确 - 检查服务是否已运行
+if lsof -i :12306 | grep -q LISTEN; then
+    echo "MCP 服务已在运行"
+else
+    echo "请先在 Chrome 中激活 mcp-chrome 扩展"
+fi
+```
+
+---
+
+## 二、完整上传流程
+
+### 步骤 1: 确认前置条件
+
+1. **Chrome 浏览器已登录抖音账号** - 打开 creator.douyin.com 确认
+2. **MCP 服务已运行** - 检查端口 12306：
+   ```bash
+   lsof -i :12306 | grep LISTEN
+   ```
+3. **视频文件存在** - 检查文件路径
+
+### 步骤 2: 执行上传脚本
+
+```bash
+cd /Users/azm/MyProject/auto-browser
+./video-upload/scripts/upload.sh /path/to/video.mp4 "视频标题"
+```
+
+### 步骤 3: 流程说明
+
+```
+环节 1: 检查 MCP 服务 (端口 12306)
+       ↓
+环节 2: 导航到上传页面 (等待 5 秒)
+       ↓
+环节 3: 上传视频文件 (选择器: input[type="file"])
+       ↓
+环节 4: 等待视频处理 (等待 15 秒) ← 关键！
+       ↓
+环节 5: 检查页面状态 (是否出现标题输入框)
+       ↓
+环节 6: 填写标题 (可选)
+```
+
+---
+
+## 三、关键代码片段
+
+### MCP 客户端初始化
 
 ```javascript
-// 选择器使用 input[type="file"]
-{
-  "selector": "input[type=\"file\"]",
-  "filePath": "/path/to/video.mp4"
+const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const { StreamableHTTPClientTransport } = require('@modelcontextprotocol/sdk/client/streamableHttp.js');
+
+// 设置模块路径
+process.env.NODE_PATH = '/Users/azm/Library/pnpm/global/5/.pnpm/@modelcontextprotocol+sdk@1.29.0_zod@3.25.76/node_modules:' + process.env.NODE_PATH;
+require('module')._initPaths();
+
+// 加载配置
+const config = JSON.parse(fs.readFileSync('/path/to/stdio-config.json', 'utf8'));
+
+// 创建客户端（只创建一次）
+const client = new Client({ name: 'Mcp Chrome Proxy', version: '1.0.0' }, { capabilities: {} });
+const transport = new StreamableHTTPClientTransport(new URL(config.url), {});
+await client.connect(transport);
+```
+
+### 上传视频
+
+```javascript
+const uploadResult = await client.callTool({ 
+    name: 'chrome_upload_file', 
+    arguments: { 
+        selector: 'input[type="file"]',  // 必须使用这个选择器
+        filePath: '/path/to/video.mp4'
+    }
+}, undefined, { timeout: 180000 });
+```
+
+### 检查上传结果
+
+```javascript
+// 上传后等待 15 秒
+await new Promise(r => setTimeout(r, 15000));
+
+// 检查页面是否出现标题输入框
+const pageResult = await client.callTool({ 
+    name: 'chrome_read_page', 
+    arguments: { filter: 'interactive' }
+}, undefined, { timeout: 30000 });
+
+const content = JSON.stringify(pageResult.content);
+if (content.includes('textbox') && content.includes('标题')) {
+    console.log('✓ 上传成功');
 }
 ```
 
-### 2. 上传后的等待时间
+---
 
-视频上传后需要等待约 **15 秒**让系统处理视频。等待时间过短会导致页面仍然是上传界面。
+## 四、常见错误及解决
 
-### 3. 页面跳转
+### 错误 1: "Already connected to a transport"
 
-视频处理完成后，页面会自动跳转到视频编辑页面：
-- URL: `https://creator.douyin.com/creator-micro/content/post/video?enter_from=publish_page`
-- 特征：出现标题输入框 `input[placeholder*="标题"]`
+**原因**：多次创建客户端连接
 
-## 完整操作流程
+**解决**：整个流程只使用一个客户端连接
 
-### 步骤 1: 导航到上传页面
+### 错误 2: "视频文件不存在"
 
-```javascript
-await callTool('chrome_navigate', {
-  url: 'https://creator.douyin.com/creator-micro/content/upload'
-});
+**原因**：文件路径错误或文件不存在
+
+**解决**：
+```bash
+# 检查文件是否存在
+ls -la /path/to/video.mp4
 ```
 
-### 步骤 2: 上传视频文件
+### 错误 3: "MCP 服务未运行"
 
-```javascript
-await callTool('chrome_upload_file', {
-  selector: 'input[type="file"]',
-  filePath: '/Users/azm/Downloads/工具介绍_软字幕版.mp4'
-});
-```
+**原因**：MCP 服务未启动
 
-**注意**: 
-- 选择器必须是 `input[type="file"]`
-- 文件路径可以是绝对路径
-- 支持的视频格式: mp4, webm, mov, avi, wmv, flv, mkv 等
+**解决**：
+1. 打开 Chrome 扩展管理页面
+2. 找到 mcp-chrome 扩展
+3. 点击连接，确保显示"服务运行中 (端口: 12306)"
 
-### 步骤 3: 等待视频处理
+### 错误 4: 上传后页面没有跳转
 
-```javascript
-await new Promise(r => setTimeout(r, 15000)); // 等待15秒
-```
+**原因**：等待时间不够
 
-### 步骤 4: 检查页面状态
+**解决**：上传后等待至少 15 秒
 
-处理完成后，页面会出现标题输入框。检查页面是否有可交互元素：
+---
 
-```javascript
-const page = await callTool('chrome_read_page', { filter: 'interactive' });
-// 如果出现 ref_19 (textbox 标题输入框)，说明上传成功
-```
+## 五、相关文件路径
 
-### 步骤 5: 填写标题
+| 文件 | 路径 |
+|------|------|
+| 上传脚本 | `/Users/azm/MyProject/auto-browser/video-upload/scripts/upload.sh` |
+| stdio 配置 | `/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/stdio-config.json` |
+| MCP SDK | `/Users/azm/Library/pnpm/global/5/.pnpm/@modelcontextprotocol+sdk@1.29.0_zod@3.25.76/node_modules/` |
 
-```javascript
-await callTool('chrome_fill_or_select', {
-  ref: 'ref_19',  // 标题输入框
-  value: '测试视频上传 - 工具介绍'
-});
-```
+---
 
-### 步骤 6: 滚动到底部找到发布按钮
+## 六、重要提示
 
-```javascript
-// 找到发布按钮 (通常是页面右侧的按钮)
-await callTool('chrome_computer', {
-  action: 'scroll_to',
-  ref: 'ref_24'  // 发布按钮的 ref
-});
-```
-
-### 步骤 7: 点击发布按钮
-
-```javascript
-await callTool('chrome_click_element', {
-  ref: 'ref_24',  // 发布按钮
-  waitForNavigation: true
-});
-```
-
-## 关键选择器参考
-
-| 元素 | 选择器 | 说明 |
-|------|--------|------|
-| 文件输入 | `input[type="file"]` | 上传视频文件 |
-| 标题输入 | `input[placeholder*="标题"]` 或 `.semi-input` | 填写作品标题 |
-| 上传按钮 | `.semi-button-primary` 或 `button.semi-button-primary` | 页面上的上传按钮 |
-| 发布按钮 | ref_24 (动态) | 页面右侧的发布/确认按钮 |
-
-## 重要注意事项
-
-1. **不要使用固定的 ref**: ref 是动态的，每次页面加载后都会变化。必须使用 CSS 选择器。
-
-2. **等待时间**: 视频上传后必须等待足够时间（约15秒），否则页面不会跳转到编辑页面。
-
-3. **选择器优先**: 优先使用 CSS 选择器而非 ref，避免元素变化导致操作失败。
-
-4. **文件路径**: 确保视频文件存在且路径正确。
-
-## 常见问题
-
-### Q: 上传后页面没有跳转怎么办?
-A: 增加等待时间到 15-20 秒，然后重新检查页面元素。
-
-### Q: 找不到发布按钮怎么办?
-A: 使用 `chrome_computer` 的 `scroll_to` 滚动到页面底部，或使用 `screenshot` 查看页面布局。
-
-### Q: "File chooser dialog can only be shown with a user activation" 警告
-A: 这是正常的警告，`chrome_upload_file` 工具可以直接设置文件而不需要用户交互。
-
-## 测试视频路径
-
-```
-/Users/azm/Downloads/工具介绍_软字幕版.mp4
-/Users/azm/Downloads/xhs智能总结.mp4
-```
-
-## 相关文件
-
-- SKILL.md: `/Users/azm/MyProject/auto-browser/video-upload/SKILL.md`
-- 上传脚本: `/Users/azm/MyProject/auto-browser/video-upload/scripts/upload.sh`
-- MCP 工具: `/Users/azm/MyProject/auto-browser/video-upload/scripts/mcp-tools.js`
-
-
-## 我的尝试过程
-
-### 1. 第一次尝试 - 失败
-- 使用 `chrome_upload_file` 上传文件
-- 等待约 8 秒
-- 页面没有变化，仍然是上传界面
-
-### 2. 第二次尝试 - 失败  
-- 点击"上传视频"按钮 (ref_15)
-- 等待 10 秒
-- 页面还是没有跳转
-
-### 3. 第三次尝试 - 成功
-- 再次使用 `chrome_upload_file` 上传同一个视频
-- 等待了 **15 秒**
-- 这次页面成功跳转到编辑页面，出现了标题输入框
-
-## 成功的关键原因
-
-回头看，其实方法一直是对的：**使用 `chrome_upload_file` 工具，选择器 `input[type="file"]"`**
-
-但之前失败的原因是 **等待时间不够**。抖音的视频处理需要时间，我之前只等了 8 秒，但实际上需要 **15 秒左右**。
-
-## 关键发现
-
-1. **`chrome_upload_file` 工具可以直接上传** - 不需要点击"上传视频"按钮
-2. **等待时间很关键** - 至少等待 15 秒让视频处理完成
-3. **页面会自动跳转** - 处理完成后会自动跳转到编辑页面，无需手动操作
-4. **直接用 MCP 工具** - 直接用 MCP 工具是成功的。问题是脚本里启动了 stdio 服务器，跟已有的 Chrome 扩展服务冲突。
+1. **不要多次创建客户端** - 这是导致 "Already connected" 错误的根本原因
+2. **等待时间要足够** - 特别是上传后的 15 秒等待
+3. **MCP 服务由扩展管理** - 不需要在脚本中启动
+4. **使用正确的选择器** - `input[type="file"]` 是上传视频的关键选择器

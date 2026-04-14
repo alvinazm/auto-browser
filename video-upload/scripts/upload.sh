@@ -74,7 +74,7 @@ async function run() {
     try {
         // 环节 3: 导航
         console.log('');
-        console.log('=== 环节 3: 导航到上传页面 ===');
+        console.log('=== 环节 3: 打开上传页面 ===');
         await new Promise(r => setTimeout(r, 2000));
         
         const navResult = await client.callTool({ 
@@ -102,9 +102,9 @@ async function run() {
         
         // 环节 5: 等待处理
         console.log('');
-        console.log('=== 环节 5: 等待视频处理 ===');
-        console.log('等待 15 秒...');
-        await new Promise(r => setTimeout(r, 15000));
+        console.log('=== 环节 5: 等待视频上传 ===');
+        console.log('等待 5 秒...');
+        await new Promise(r => setTimeout(r, 5000));
         
         // 环节 6: 检查状态
         console.log('');
