@@ -12,10 +12,10 @@ trigger: 抖音上传、视频发布、上传封面
 
 ```bash
 # 仅上传视频和标题
-/Users/azm/MyProject/auto-browser/video-upload/scripts/upload.sh <视频路径> [标题]
+/Users/azm/MyProject/auto-browser/videoupload/video-upload/scripts/upload.sh <视频路径> [标题]
 
 # 上传视频、标题和封面
-/Users/azm/MyProject/auto-browser/video-upload/scripts/upload.sh <视频路径> [标题] [封面路径]
+/Users/azm/MyProject/auto-browser/videoupload/video-upload/scripts/upload.sh <视频路径> [标题] [封面路径]
 ```
 
 ## 参数说明
@@ -30,10 +30,10 @@ trigger: 抖音上传、视频发布、上传封面
 
 ```bash
 # 上传视频
-./upload.sh /Users/azm/Downloads/test.mov 我的视频标题
+/Users/azm/MyProject/auto-browser/videoupload/video-upload/scripts/upload.sh /Users/azm/Downloads/test.mov 我的视频标题
 
 # 上传视频和封面
-./upload.sh /Users/azm/Downloads/test.mov 我的视频标题 /Users/azm/Downloads/cover.png
+/Users/azm/MyProject/auto-browser/videoupload/video-upload/scripts/upload.sh /Users/azm/Downloads/test.mov 我的视频标题 /Users/azm/Downloads/cover.png
 ```
 
 ## 前置条件
