@@ -85,8 +85,9 @@ upload_video_bilibili() {
     echo ""
     echo "=== 点击上传按钮 ==="
     human_reaction_delay
-    # B站上传按钮选择器 (参照原项目 routes.py: input[type="file"][accept*="video"])
-    CLICK_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"selector":"input[type=\"file\"][accept*=\"video\"]","selectorType":"css"}},"id":3}'
+    # B站上传页面有多个上传区域，参照原项目 routes.py 使用 .upload-area
+    # 先尝试点击 .upload-area 区域
+    CLICK_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"selector":".upload-area","selectorType":"css"}},"id":3}'
     CLICK_RESULT=$(mcp_call "$CLICK_JSON")
     echo "点击结果: $CLICK_RESULT"
 
@@ -96,7 +97,8 @@ upload_video_bilibili() {
     echo ""
     echo "=== 上传视频文件 ==="
     ESCAPED_PATH=$(echo "$video_path" | sed 's/"/\\"/g')
-    UPLOAD_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_upload_file\",\"arguments\":{\"selector\":\"input[type=\\\"file\\\"][accept*=\\\"video\\\"]\",\"filePath\":\"$ESCAPED_PATH\"}},\"id\":4}"
+    # B站文件选择器 (参照原项目 routes.py: input[type="file"])
+    UPLOAD_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_upload_file\",\"arguments\":{\"selector\":\"input[type=\\\"file\\\"]\",\"filePath\":\"$ESCAPED_PATH\"}},\"id\":4}"
     UPLOAD_RESULT=$(mcp_call "$UPLOAD_JSON")
     echo "上传结果: $UPLOAD_RESULT"
 
