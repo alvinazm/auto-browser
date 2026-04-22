@@ -9,7 +9,8 @@
 - fill-userinfo 是一个独立的skill，校招简历自动填写
 - video-upload自动发布抖音视频，<视频路径> [标题] [封面路径]
 - 独立运行：cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./platforms/douyin.sh /Users/azm/Downloads/test.mov "单独运行测试" /Users/azm/Downloads/封面1.png
-- 通过通用入口运行： cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./upload.sh douyin /Users/azm/Downloads/test.mov "使用通用入口测试测试"
+- 通用入口运行： cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./upload.sh douyin /Users/azm/Downloads/test.mov "使用通用入口测试测试" /Users/azm/Downloads/封面1.png
+
 
 一个给 AI 使用的标准 skill 主要包含：
 
