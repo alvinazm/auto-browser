@@ -1,18 +1,20 @@
 #!/bin/bash
 
 # 小红书视频上传脚本 (stdio 模式)
-# 100% 参照 douyin.sh 的 MCP 处理方式
-# 100% 参照原项目 xhs-comments-reply2 的 input_text 方法
+# 被 upload.sh 调用: upload_video_xiaohongshu <视频路径> <标题>
+# 或单独运行: ./xiaohongshu.sh <视频路径> [标题]
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../human.sh"
 
 STDIO_SERVER="${STDIO_SERVER:-/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js}"
 
+# 检测是否被 source（作为函数被调用）
 _is_sourced() {
     [[ "${BASH_SOURCE[0]}" != "${0}" ]]
 }
 
+# MCP 调用函数 - 带重试
 mcp_call() {
     local JSON="$1"
     local max_retries=5
@@ -44,6 +46,7 @@ mcp_call() {
     return 1
 }
 
+# 小红书视频上传函数
 upload_video_xiaohongshu() {
     local video_path="$1"
     local title="$2"
@@ -54,11 +57,13 @@ upload_video_xiaohongshu() {
     echo "标题: $title"
     echo "============================================"
 
+    # 检查视频文件
     if [ ! -f "$video_path" ]; then
         echo "错误: 视频文件不存在: $video_path"
         return 1
     fi
 
+    # 清理端口
     lsof -i :12306 2>/dev/null | grep -v PID | awk '{print $2}' | head -1 | xargs kill -9 2>/dev/null
     sleep 2
 
@@ -83,25 +88,15 @@ upload_video_xiaohongshu() {
     human_read_page_delay
 
     echo ""
-    echo "=== 点击上传按钮 ==="
-    human_reaction_delay
-    # 小红书上传按钮选择器 (参照原项目 routes.py)
-    CLICK_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_click_element","arguments":{"selector":"input[type=\"file\"]","selectorType":"css"}},"id":3}'
-    CLICK_RESULT=$(mcp_call "$CLICK_JSON")
-    echo "点击结果: $CLICK_RESULT"
-
-    # 模拟人类延迟
-    human_random_delay
-
-    echo ""
     echo "=== 上传视频文件 ==="
+    human_reaction_delay
     ESCAPED_PATH=$(echo "$video_path" | sed 's/"/\\"/g')
-    UPLOAD_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_upload_file\",\"arguments\":{\"selector\":\"input[type=\\\"file\\"]\",\"filePath\":\"$ESCAPED_PATH\"}},\"id\":4}"
+    UPLOAD_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_upload_file\",\"arguments\":{\"selector\":\"input[type=\\\"file\\\"]\",\"filePath\":\"$ESCAPED_PATH\"}},\"id\":3}"
     UPLOAD_RESULT=$(mcp_call "$UPLOAD_JSON")
     echo "上传结果: $UPLOAD_RESULT"
 
-    echo "等待视频处理 (3秒)..."
-    sleep 3
+    echo "等待视频处理 (2秒)..."
+    sleep 2
 
     echo ""
     echo "=== 滚动页面 ==="
@@ -119,35 +114,24 @@ upload_video_xiaohongshu() {
     PAGE_RESULT=$(mcp_call "$READ_JSON")
     echo "页面: $PAGE_RESULT"
 
+    # 填写标题 - 100% 参照 douyin.sh
     if echo "$PAGE_RESULT" | grep -q "标题"; then
-        human_read_page_delay
-        
         echo ""
         echo "=== 填写标题 ==="
         human_reaction_delay
         ESCAPED_TITLE=$(echo "$title" | sed 's/"/\\"/g')
-        
-        # 参照原项目 cdp.py 的 input_text 方法:
-        # 1. 先用 JavaScript 清空并设置内容 (检测 contenteditable 并设置)
-        # 2. 触发 input 和 change 事件
-        
-        echo "使用 JavaScript 设置标题 (参照原项目 cdp.py input_text 方法)..."
-        
-        # 构建 JavaScript 代码来检测并设置内容
-        # 使用 base64 编码避免引号问题
-        JS_BASE64=$(echo "const el = document.querySelector('input[placeholder*=\"标题\"]'); if(el) { if(el.getAttribute('contenteditable') === 'true') { el.innerText = '$ESCAPED_TITLE'; } else { el.value = '$ESCAPED_TITLE'; } el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }" | base64 -w0)
-        
-        FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_javascript\",\"arguments\":{\"code\":\"atob('$JS_BASE64')\"}},\"id\":6}"
+        FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
         FILL_RESULT=$(mcp_call "$FILL_JSON")
-        echo "填写结果: $FILL_RESULT"
+        echo "填写: $FILL_RESULT"
     fi
 
     echo ""
     echo "============================================"
-    echo "小红书视频上传流程完成!"
+    echo "上传流程完成!"
     echo "============================================"
 }
 
+# 如果直接运行此脚本
 if ! _is_sourced; then
     if [ -z "$1" ]; then
         echo "用法: $0 <视频路径> [标题]"
