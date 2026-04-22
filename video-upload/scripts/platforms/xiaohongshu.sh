@@ -114,15 +114,34 @@ upload_video_xiaohongshu() {
     PAGE_RESULT=$(mcp_call "$READ_JSON")
     echo "页面: $PAGE_RESULT"
 
-    # 填写标题 - 100% 参照 douyin.sh
+    # 填写标题 - 100% 参照原项目 cdp.py 的 input_text 方法
     if echo "$PAGE_RESULT" | grep -q "标题"; then
         echo ""
         echo "=== 填写标题 ==="
         human_reaction_delay
         ESCAPED_TITLE=$(echo "$title" | sed 's/"/\\"/g')
-        FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
-        FILL_RESULT=$(mcp_call "$FILL_JSON")
-        echo "填写: $FILL_RESULT"
+        
+        # 步骤1: 检测是否是 contenteditable (参照原项目 cdp.py 第508-515行)
+        echo "检测元素类型..."
+        CHECK_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_javascript","arguments":{"code":"(()=>{const el=document.querySelector(\"input[placeholder*=\\\u6807\\u9896\\\"]\");return el?el.getAttribute(\"contenteditable\")===\"true\":false})()"}},"id":6}'
+        CHECK_RESULT=$(mcp_call "$CHECK_JSON")
+        
+        # 步骤2: 根据元素类型选择填写方式
+        if echo "$CHECK_RESULT" | grep -q '"result":true'; then
+            # contenteditable: 用 JavaScript innerText (参照原项目 cdp.py 第520-560行)
+            echo "contenteditable 元素，使用 JavaScript innerText"
+            SET_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_javascript","arguments":{"code":"(()=>{const el=document.querySelector(\"input[placeholder*=\\u6807\\u9896\\\"]\");if(el){el.innerText=\"'$ESCAPED_TITLE'\";el.dispatchEvent(new Event(\"input\",{bubbles:true}));el.dispatchEvent(new Event(\"change\",{bubbles:true}))}})()"}},"id":7}'
+        else
+            # 普通 input: 先清空，再用 chrome_fill_or_select (参照原项目 cdp.py 第560-571行)
+            echo "普通 input 元素，先清空后填写"
+            CLEAR_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_javascript","arguments":{"code":"(()=>{const el=document.querySelector(\"input[placeholder*=\\u6807\\u9896\\\"]\");if(el){el.value=\"\";el.dispatchEvent(new Event(\"input\",{bubbles:true}))}})()"}},"id":7}'
+            mcp_call "$CLEAR_JSON" > /dev/null
+            sleep 0.2
+            SET_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\\\"标题\\\\\"],\"value\":\"$ESCAPED_TITLE\"}},\"id\":8}"
+        fi
+        
+        FILL_RESULT=$(mcp_call "$SET_JSON")
+        echo "填写结果: $FILL_RESULT"
     fi
 
     echo ""
