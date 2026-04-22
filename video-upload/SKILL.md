@@ -125,9 +125,10 @@ video-upload/
 
 ## 前置条件
 
-1. **Chrome 扩展连接** - 确保 MCP Chrome 扩展已连接
-   - 打开 Chrome 扩展 popup，点击连接按钮
-   - 确认状态显示 "connected"
+1. **Chrome 扩展连接（必须！）** - stdio 模式需要 MCP Chrome 扩展先连接
+   - 在 Chrome 工具栏点击 MCP Chrome 扩展图标
+   - 点击连接按钮，状态显示 "connected"
+   - 如果扩展未连接，所有 MCP 调用都会失败！
 
 2. **Chrome 浏览器已登录目标平台创作者后台**
 
@@ -140,8 +141,13 @@ video-upload/
 
 ## 常见问题
 
+**MCP 连接失败**：先确认 MCP Chrome 扩展已连接（扩展 popup 显示 connected），然后检查端口 12306
+
+**端口被占用**：
+```bash
+lsof -i :12306 | grep -v PID | awk '{print $2}' | xargs kill -9
+```
+
 **上传失败**：确认视频文件存在，路径正确
 
-**MCP 连接失败**：检查端口 12306 是否被占用
-
-**选择器失效**：平台可能更新了页面结构，请参考最新的选择器配置
+**选择器失效**：平台可能更新了页面结构，请参考 references/platform-selectors.md 或 xhs-comments-reply2 项目

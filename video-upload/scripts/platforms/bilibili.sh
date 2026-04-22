@@ -5,7 +5,7 @@
 # 创作者后台: https://member.bilibili.com/platform/upload/video/frame
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/../human.sh"
+source "$SCRIPT_DIR/human.sh"
 
 # ========== 平台配置 ==========
 PLATFORM="bilibili"

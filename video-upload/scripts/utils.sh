@@ -31,6 +31,7 @@ init_mcp() {
 # ========== MCP 调用（单次，不重试）==========
 mcp_call_single() {
     local JSON="$1"
+    cleanup_port
     echo "$JSON" | node "$STDIO_SERVER" 2>&1
 }
 
@@ -42,9 +43,8 @@ mcp_call() {
     local RESULT=""
 
     while [ $retry -lt $max_retries ]; do
-        if [ $retry -gt 0 ]; then
-            cleanup_port
-        fi
+        # 每次调用前清理端口，防止旧进程残留
+        cleanup_port
 
         RESULT=$(echo "$JSON" | node "$STDIO_SERVER" 2>&1)
 
@@ -216,6 +216,27 @@ scroll_up() {
     SCROLL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_computer\",\"arguments\":{\"action\":\"scroll\",\"scrollDirection\":\"up\",\"scrollAmount\":$amount}},\"id\":4}"
     RESULT=$(mcp_call_single "$SCROLL_JSON")
     echo "$RESULT"
+}
+
+# 带人类行为模拟的滚动
+human_scroll_down() {
+    local times=${1:-1}
+    local i
+    for ((i=1; i<=times; i++)); do
+        human_scroll_wait
+        scroll_down 3
+        human_random_delay
+    done
+}
+
+human_scroll_up() {
+    local times=${1:-1}
+    local i
+    for ((i=1; i<=times; i++)); do
+        human_scroll_wait
+        scroll_up 3
+        human_random_delay
+    done
 }
 
 # ============================================================

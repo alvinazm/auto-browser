@@ -3,14 +3,15 @@
 - 帮你填表
 
 
-
+改完成之后先用通用入口调用抖音看看能否执行成功，确保video-upload/scripts/utils.sh 你修改的是对的;确保douyin没问题了,再测试kuaishou       
+谁调用了video-upload/scripts/utils.sh
 
 ## 已完成
 - fill-userinfo 是一个独立的skill，校招简历自动填写
 - video-upload自动发布抖音视频，<视频路径> [标题] [封面路径]
-- 独立运行：cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./platforms/douyin.sh /Users/azm/Downloads/test.mov "单独运行测试" /Users/azm/Downloads/封面1.png
-- 通用入口运行： cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./upload.sh douyin /Users/azm/Downloads/test.mov "使用通用入口测试测试" /Users/azm/Downloads/封面1.png
-- cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./upload.sh kuaishou /Users/azm/Downloads/test.mov "使用通用入口测试测试"
+- 独立运行：cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./platforms/douyin.sh /Users/azm/Downloads/test.mp4 "单独运行测试" /Users/azm/Downloads/封面1.png
+- 通用入口运行： cd /Users/azm/MyProject/auto-browser/video-upload/scripts && ./upload.sh douyin /Users/azm/Downloads/test.mp4 "使用通用入口测试测试" /Users/azm/Downloads/封面1.png
+- ./video-upload/scripts/upload.sh kuaishou /Users/azm/Downloads/test.mp4 "使用通用入口测试测试"
 
 一个给 AI 使用的标准 skill 主要包含：
 
