@@ -2,6 +2,8 @@
 name: video-upload
 description: 在多平台创作者后台上传视频（抖音、小红书、快手、百家号、B站），包含人类行为模拟
 trigger: 视频上传、多平台上传、上传视频、douyin、xiaohongshu、kuaishou、baijiahao、bilibili
+related_skills:
+  - mcp-chrome-stdio-automation
 ---
 
 # 视频上传
@@ -83,7 +85,7 @@ cd /Users/azm/MyProject/auto-browser/video-upload/scripts
 - 使用"稿件标题"作为标题 placeholder
 - 上传区域有特殊 UI
 
-详细选择器见 [REFERENCES.md](REFERENCES.md)
+详细选择器见 [references/platform-selectors.md](references/platform-selectors.md)
 
 ## 人类行为模拟
 
@@ -103,7 +105,12 @@ cd /Users/azm/MyProject/auto-browser/video-upload/scripts
 ```
 video-upload/
 ├── SKILL.md              # 主技能文档
-├── REFERENCES.md        # 选择器参考
+├── REFERENCES.md         # 选择器参考 (已移至 references/)
+├── PROPOSAL.md           # 设计提案 (已移至 doc/)
+├── doc/                  # 设计文档
+│   └── PROPOSAL.md
+├── references/           # 参考资料
+│   └── platform-selectors.md
 └── scripts/
     ├── human.sh         # 人类行为模拟函数库
     ├── upload.sh       # 统一入口脚本
@@ -118,9 +125,18 @@ video-upload/
 
 ## 前置条件
 
-1. Chrome 浏览器已登��目标平台创作者后台
-2. mcp-chrome 扩展已连接（端口 12306）
-3. MCP 服务器路径正确：`/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js`
+1. **Chrome 扩展连接** - 确保 MCP Chrome 扩展已连接
+   - 打开 Chrome 扩展 popup，点击连接按钮
+   - 确认状态显示 "connected"
+
+2. **Chrome 浏览器已登录目标平台创作者后台**
+
+3. **MCP 服务器路径正确**：
+   ```
+   /Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js
+   ```
+
+> 相关技能: [mcp-chrome-stdio-automation](../mcp/mcp-chrome-stdio-automation/SKILL.md)
 
 ## 常见问题
 
