@@ -3,8 +3,8 @@
 # 百家号视频上传脚本 (stdio 模式)
 # 100% 参照 douyin.sh 的 MCP 处理方式
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../human.sh"
+PLATFORM_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$PLATFORM_SCRIPT_DIR/../human.sh"
 
 STDIO_SERVER="${STDIO_SERVER:-/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js}"
 
@@ -65,8 +65,7 @@ upload_video_baijiahao() {
     echo ""
     echo "=== 初始化 MCP ==="
     INIT_JSON='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1.0"}},"id":1}'
-    INIT_RESULT=$(mcp_call "$INIT_JSON")
-    echo "初始化: OK"
+    mcp_call "$INIT_JSON" > /dev/null
 
     echo ""
     echo "=== 打开上传页面 ==="
@@ -105,13 +104,6 @@ upload_video_baijiahao() {
     echo "=== 滚动后等待 ==="
     human_scroll_wait
     sleep 2
-
-    echo "=== 检查页面状态 ==="
-    READ_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_read_page","arguments":{"filter":"interactive"}},"id":5}'
-    PAGE_RESULT=$(mcp_call "$READ_JSON")
-    echo "页面: $PAGE_RESULT"
-
-    # 填写标题 -百家号使用 Lexical 编辑器，必须通过 document.execCommand('insertText') 触发
     echo ""
     echo "=== 填写标题 ==="
     human_reaction_delay

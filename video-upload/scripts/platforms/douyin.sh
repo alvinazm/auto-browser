@@ -4,8 +4,8 @@
 # 被 upload.sh 调用: upload_video_douyin <视频路径> <标题> [封面路径]
 # 或单独运行: ./douyin.sh <视频路径> [标题] [封面路径]
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../human.sh"
+PLATFORM_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$PLATFORM_SCRIPT_DIR/../human.sh"
 
 STDIO_SERVER="${STDIO_SERVER:-/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js}"
 
@@ -80,8 +80,7 @@ upload_video_douyin() {
     echo ""
     echo "=== 初始化 MCP ==="
     INIT_JSON='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1.0"}},"id":1}'
-    INIT_RESULT=$(mcp_call "$INIT_JSON")
-    echo "初始化: OK"
+    mcp_call "$INIT_JSON" > /dev/null
 
     echo ""
     echo "=== 打开上传页面 ==="
@@ -122,27 +121,16 @@ upload_video_douyin() {
     human_random_delay
     SCROLL_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_computer","arguments":{"action":"scroll","scrollDirection":"down","scrollAmount":3}},"id":4}'
     mcp_call "$SCROLL_JSON" > /dev/null
+    human_scroll_wait
     echo "滚动完成"
 
     echo ""
-    echo "=== 滚动后等待 ==="
-    human_scroll_wait
-
-    echo "=== 检查页面状态 ==="
-    READ_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_read_page","arguments":{"filter":"interactive"}},"id":5}'
-    PAGE_RESULT=$(mcp_call "$READ_JSON")
-    echo "页面: $PAGE_RESULT"
-
-    if echo "$PAGE_RESULT" | grep -q "标题"; then
-        human_read_page_delay
-        
-        echo ""
-        echo "=== 填写标题 ==="
-        human_reaction_delay
-        ESCAPED_TITLE=$(echo "$title" | sed 's/"/\\"/g')
-        FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"填写作品标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
-        FILL_RESULT=$(mcp_call "$FILL_JSON")
-        echo "填写: $FILL_RESULT"
+    echo "=== 填写标题 ==="
+    human_reaction_delay
+    ESCAPED_TITLE=$(echo "$title" | sed 's/"/\\"/g')
+    FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"input[placeholder*=\\\"填写作品标题\\\"]\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
+    FILL_RESULT=$(mcp_call "$FILL_JSON")
+    echo "填写: $FILL_RESULT"
         
         # 如果提供了封面路径
         if [ -n "$cover_path" ]; then
@@ -185,8 +173,6 @@ upload_video_douyin() {
             CLICK_FINISH_RESULT=$(mcp_call "$CLICK_FINISH_JSON")
             echo "点击完成: $CLICK_FINISH_RESULT"
         fi
-    fi
-
     echo ""
     echo "============================================"
     echo "上传流程完成!"

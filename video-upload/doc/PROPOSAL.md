@@ -44,8 +44,7 @@ video-upload/
 ├── REFERENCES.md               # 各平台选择器参考（从 xhs-comments-reply2 迁移）
 ├── scripts/
 │   ├── human.sh               # 人类行为模拟函数库
-│   ├── upload.sh             # 统一入口脚本（自动识别平台）
-│   ├── utils.sh              # 公共工具函数
+│   ├── upload.sh             # 统一入口脚本
 │   └── platforms/
 │       ├── douyin.sh         # 抖音上传（已有，迁移）
 │       ├── xiaohongshu.sh    # 小红书上传
@@ -106,12 +105,6 @@ video-upload/
 │   ├── human.sh               # 人类行为模拟（保持不变）
 │   ├── upload.sh              # 统一入口
 │   │                          # 用法: ./upload.sh <平台> <视频> [标题]
-│   ��                          # 示例: ./upload.sh xiaohongshu /path/video.mp4 "标题"
-│   ├── utils.sh              # 公共函数
-│   │   ├── get_platform_url()     # 获取平台 URL
-│   │   ├── get_file_selectors()  # 获取文件选择器
-│   │   ├── get_title_selectors() # 获取标题选择器
-│   │   └── wait_video_processing() # 等待视频处理
 │   └── platforms/
 │       ├── douyin.sh         # 抖音
 │       ├── xiaohongshu.sh    # 小红书
@@ -130,8 +123,6 @@ video-upload/
 
 | 文件 | 命名 | 说明 |
 |------|------|------|
-| 公共工具 | `utils.sh` | 平台无关的工具函数 |
-| 人类行为 | `human.sh` | 保持不变 |
 | 统一入口 | `upload.sh` | 自动路由到 platforms/*.sh |
 | 平台脚本 | `platforms/douyin.sh` | 每个平台独立脚本 |
 

@@ -3,8 +3,8 @@
 # 快手视频上传脚本 (stdio 模式)
 # 100% 参照 douyin.sh 的 MCP 处理方式
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/../human.sh"
+PLATFORM_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$PLATFORM_SCRIPT_DIR/../human.sh"
 
 STDIO_SERVER="${STDIO_SERVER:-/Users/azm/Library/pnpm/global/5/node_modules/mcp-chrome-bridge/dist/mcp/mcp-server-stdio.js}"
 
@@ -69,8 +69,7 @@ upload_video_kuaishou() {
     echo ""
     echo "=== 初始化 MCP ==="
     INIT_JSON='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"cli","version":"1.0"}},"id":1}'
-    INIT_RESULT=$(mcp_call "$INIT_JSON")
-    echo "初始化: OK"
+    mcp_call "$INIT_JSON" > /dev/null
 
     echo ""
     echo "=== 打开上传页面 ==="
@@ -113,45 +112,16 @@ upload_video_kuaishou() {
     echo "滚动: OK"
 
     echo ""
-    echo "=== 检查页面状态 ==="
-    human_read_page_delay
-    READ_JSON='{"jsonrpc":"2.0","method":"tools/call","params":{"name":"chrome_read_page","arguments":{"filter":"interactive"}},"id":5}'
-    PAGE_RESULT=$(mcp_call "$READ_JSON")
-    echo "页面: $PAGE_RESULT"
-
-    # 参照原项目 xhs-comments-reply2 的 description_selectors
-    # 方案1: 点击元素后用 keyboard type
-    if echo "$PAGE_RESULT" | grep -q "work-description-edit"; then
-        human_read_page_delay
-
-        echo ""
-        echo "=== 填写作品描述 (JavaScript直接设置) ==="
-        human_reaction_delay
-        
-        # 使用 JavaScript 直接设置 innerText
-        # 注意：需要处理引号转义
-        ESCAPED_TITLE=$(echo "$title" | sed "s/'/\\\\'/g")
-        
-        JS_CODE="var el = document.getElementById('work-description-edit'); if(el) { el.innerText = '$ESCAPED_TITLE'; el.dispatchEvent(new Event('input', {bubbles:true})); }"
-        JS_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_javascript\",\"arguments\":{\"code\":\"$JS_CODE\"}},\"id\":6}"
-        JS_RESULT=$(mcp_call "$JS_JSON")
-        echo "JS设置: $JS_RESULT"
-    else
-        echo "警告: 未找到描述输入框，尝试其他选择器..."
-        # 回退到 chrome_fill_or_select
-        for selector in 'div[contenteditable="true"][placeholder*="描述"]' 'textarea[placeholder*="描述"]'; do
-            human_reaction_delay
-            ESCAPED_TITLE=$(echo "$title" | sed 's/"/\\"/g')
-            ESCAPED_SEL=$(echo "$selector" | sed 's/"/\\"/g')
-            FILL_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_fill_or_select\",\"arguments\":{\"selector\":\"$ESCAPED_SEL\",\"value\":\"$ESCAPED_TITLE\"}},\"id\":6}"
-            FILL_RESULT=$(mcp_call "$FILL_JSON")
-
-            if echo "$FILL_RESULT" | grep -q '"isError":false'; then
-                echo "填写成功 (选择器: $selector)"
-                break
-            fi
-        done
-    fi
+    echo "=== 填写作品描述 (JavaScript直接设置) ==="
+    human_reaction_delay
+    
+    # 使用 JavaScript 直接设置 innerText
+    ESCAPED_TITLE=$(echo "$title" | sed "s/'/\\\\'/g")
+    
+    JS_CODE="var el = document.getElementById('work-description-edit'); if(el) { el.innerText = '$ESCAPED_TITLE'; el.dispatchEvent(new Event('input', {bubbles:true})); }"
+    JS_JSON="{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"chrome_javascript\",\"arguments\":{\"code\":\"$JS_CODE\"}},\"id\":6}"
+    JS_RESULT=$(mcp_call "$JS_JSON")
+    echo "JS设置: $JS_RESULT"
 
     echo ""
     echo "============================================"

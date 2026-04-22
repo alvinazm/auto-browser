@@ -55,7 +55,7 @@ cd /Users/azm/MyProject/auto-browser/video-upload/scripts
 5. 上传视频文件
 6. 等待视频处理（8-10秒）
 7. 滚动页面（模拟人类行为）
-8. 检查页面状态，填写标题/描述
+8. 填写标题/描述
 
 ## 平台特定说明
 
@@ -114,7 +114,6 @@ video-upload/
 └── scripts/
     ├── human.sh         # 人类行为模拟函数库
     ├── upload.sh       # 统一入口脚本
-    ├── utils.sh        # 公共工具函数
     └── platforms/
         ├── douyin.sh         # 抖音
         ├── xiaohongshu.sh   # 小红书
