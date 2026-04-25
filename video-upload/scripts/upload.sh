@@ -10,12 +10,12 @@ source "$SCRIPT_DIR/human.sh"
 
 is_platform_supported() {
     case "$1" in
-        douyin|xiaohongshu|kuaishou|baijiahao|bilibili|x) return 0 ;;
+        douyin|xiaohongshu|kuaishou|baijiahao|bilibili|x|youtube) return 0 ;;
         *) return 1 ;;
     esac
 }
 
-ALL_PLATFORMS="douyin kuaishou xiaohongshu bilibili baijiahao x"
+ALL_PLATFORMS="douyin kuaishou xiaohongshu bilibili baijiahao x youtube"
 
 # ========== 使用说明 ==========
 usage() {
@@ -30,6 +30,7 @@ usage() {
     echo "  baijiahao   - 百家号"
     echo "  bilibili    - B站"
     echo "  x           - X (Twitter)"
+    echo "  youtube     - YouTube"
     echo "  all         - 同步到所有平台"
     echo ""
     echo "示例:"
